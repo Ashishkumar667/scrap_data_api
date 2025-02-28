@@ -3,6 +3,10 @@ const express = require('express');
 const app = express();
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const axios = require("axios");
+app.use(express.json());
+require('dotenv').config();
+
 
 const PORT = 3000;
 
@@ -248,11 +252,46 @@ const scrapeData = async (companySymbol) => {
     console.log(JSON.stringify(scrapedData, null, 2));
     await browser.close();
     return scrapedData;
-};
-
-app.get("/scraped-data/:companySymbol", async (req, res) => {
+}
+    async function getSymbolFromStockName(stockName) {
+        try {
+            const response = await axios.get(`https://query2.finance.yahoo.com/v1/finance/search`, {
+                params: { q: stockName, lang: "en-US", region: "US" }
+            });
+    
+            if (!response.data.quotes || response.data.quotes.length === 0) {
+                throw new Error(`No results found for ${stockName}`);
+            }
+    
+            return response.data.quotes[0].symbol;
+                
+    
+        } catch (error) {
+            console.error(`Error fetching stock symbol for ${stockName}:`, error.message);
+            return null;
+        }
+    }
+  
+  
+  app.post("/get-symbol", async (req, res) => {
+    const stockName = req.body.stockName;
+  
     try {
-        const { companySymbol } = req.params;
+        console.log("Received request body:", req.body);
+      const ticker = await getSymbolFromStockName(stockName);
+      res.json({ stockName, ticker });
+    } catch (error) {
+      console.error("Error fetching stock data:", error);
+      res.json( { stockName, ticker: null, error: "Failed to fetch data." });
+    }
+  });
+
+  
+  
+app.post("/scraped-data", async (req, res) => { // /:companySymbol
+    
+    try {
+        const { companySymbol } = req.body;
         if (!companySymbol) {
             return res.status(400).json({ error: "Company symbol is required" });
         }
